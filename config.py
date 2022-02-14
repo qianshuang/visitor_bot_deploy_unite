@@ -8,11 +8,10 @@ import threading
 
 import marisa_trie
 
-from whoosh import index
+# from whoosh import index
 from whoosh.index import create_in
 from whoosh.fields import *
 from whoosh.qparser import QueryParser
-# from whoosh import qparser
 from jieba.analyse import ChineseAnalyzer
 
 from common import *
@@ -22,6 +21,7 @@ BOT_SRC_DIR = "bot_resources"
 default_size = 10
 
 bot_intents_dict = {}
+bot_intents_whoosh_dict = {}
 bot_priorities = {}
 bot_recents = {}
 bot_frequency = {}
@@ -49,12 +49,22 @@ def build_bot_intents_dict_trie(bot_name):
 
 def build_bot_whoosh_index(bot_name, index_dir_):
     INTENT_FILE_ = os.path.join(BOT_SRC_DIR, bot_name, "intents.txt")
+    DICT_FILE_ = os.path.join(BOT_SRC_DIR, bot_name, "userdict.txt")
+    intents_dict_ = {}
+
     schema_ = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer()))
     ix_ = create_in(index_dir_, schema_)
     writer_ = ix_.writer()
     for intent_ in read_file(INTENT_FILE_):
+        for ud in read_file(DICT_FILE_):
+            intent_pro_ = intent_.replace(ud, " " + ud + " ")
+            intents_dict_[intent_pro_] = intent_
+            writer_.add_document(content=intent_pro_)
+        intents_dict_[intent_] = intent_
         writer_.add_document(content=intent_)
     writer_.commit()
+
+    bot_intents_whoosh_dict[bot_name] = intents_dict_
     return ix_
 
 
@@ -73,9 +83,9 @@ for bot_na in os.listdir(BOT_SRC_DIR):
     index_dir = os.path.join(BOT_SRC_DIR, bot_na, "index")
     if not os.path.exists(index_dir):
         os.mkdir(index_dir)
-        ix = build_bot_whoosh_index(bot_na, index_dir)
-    else:
-        ix = index.open_dir(index_dir)
+    ix = build_bot_whoosh_index(bot_na, index_dir)
+    # else:
+    #     ix = index.open_dir(index_dir)
     bot_searcher[bot_na] = ix.searcher()
 
     build_bot_qp(bot_na, ix)

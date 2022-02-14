@@ -125,6 +125,7 @@ def refresh():
         shutil.copytree(src_bot_path, bot_path)
 
         bot_intents_dict[bot_n] = bot_intents_dict[src_bot_name]
+        bot_intents_whoosh_dict[bot_n] = bot_intents_whoosh_dict[src_bot_name]
         bot_priorities[bot_n] = bot_priorities[src_bot_name]
         bot_recents[bot_n] = bot_recents[src_bot_name]
         bot_frequency[bot_n] = bot_frequency[src_bot_name]
@@ -137,6 +138,7 @@ def refresh():
         try:
             shutil.rmtree(os.path.join(BOT_SRC_DIR, bot_n))
             del bot_intents_dict[bot_n]
+            del bot_intents_whoosh_dict[bot_n]
             del bot_recents[bot_n]
             del bot_frequency[bot_n]
             del bot_priorities[bot_n]

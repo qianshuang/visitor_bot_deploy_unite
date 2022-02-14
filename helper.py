@@ -26,12 +26,14 @@ def rank(bot_n, trie_res):
 def whoosh_search(bot_n, query):
     query = bot_qp[bot_n].parse(query)
     print(query)
+
     results = bot_searcher[bot_n].search(query)
     # 还原源文本
     res = []
     for r in results:
         res.extend(r.values())
-    return res
+    # return res
+    return [bot_intents_whoosh_dict[bot_n][r] for r in res]
 
 
 def smart_hint(bot_n, query):
