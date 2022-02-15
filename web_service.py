@@ -22,12 +22,15 @@ def search():
     }
 
     return:
-    {   'code': 0,m
+    {   'code': 0,
         'msg': 'success',
         'data': []
     }
     """
-    resq_data = json.loads(request.get_data())
+    ori_rd = request.get_data(as_text=True)
+    ori_rd = ori_rd.replace('\\', '')
+    resq_data = json.loads(ori_rd)
+
     bot_n = resq_data["bot_name"].strip()
     data = resq_data["query"].strip()
     size = int(resq_data["size"]) if "size" in resq_data else default_size
