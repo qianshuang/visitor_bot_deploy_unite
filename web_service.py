@@ -28,6 +28,7 @@ def search():
     }
     """
     ori_rd = request.get_data(as_text=True)
+    ori_rd = ori_rd.replace('\\"', ',')
     ori_rd = ori_rd.replace('\\', '')
     resq_data = json.loads(ori_rd)
 
@@ -35,19 +36,22 @@ def search():
     data = resq_data["query"].strip()
     size = int(resq_data["size"]) if "size" in resq_data else default_size
 
+    if pre_process_4_trie(data) == "":
+        return {'code': 0, 'msg': 'success', 'data': []}
+
     # 1. 前缀搜索
     trie_res = smart_hint(bot_n, data)
     # 2. 断句前缀搜索
-    if_split = bool(re.search(r'[,，.。]', data))
+    if_split = bool(re.search(r'[,，.。？?！!（(”"]', data))
     if len(trie_res) == 0 and if_split:
-        trie_res = smart_hint(bot_n, re.split(r'[,，.。]', data)[-1].strip())
+        trie_res = smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip())
     # 3. 拼音前缀搜索
     if len(trie_res) == 0:
         data_pinyin = get_pinyin(data)
         trie_res = smart_hint(bot_n, data_pinyin)
     # 4. 断句拼音前缀搜索
     if len(trie_res) == 0 and if_split:
-        trie_res = smart_hint(bot_n, re.split(r'[,，.。]', data_pinyin)[-1].strip())
+        trie_res = smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
     # 5. 编辑距离
     if len(trie_res) == 0:
         trie_res = leven(bot_n, data)
@@ -60,9 +64,10 @@ def search():
         whoosh_res = []
     else:
         whoosh_res = whoosh_search(bot_n, data)
+        whoosh_res = rank(bot_n, whoosh_res)
 
     ori_res = priorities_res + ranked_trie_res + whoosh_res
-    final_res = sorted(set(ori_res), key=ori_res.index)
+    final_res = sorted(set(ori_res), key=ori_res.index)  # 保序去重
     return {'code': 0, 'msg': 'success', 'data': final_res[:size]}
 
 
