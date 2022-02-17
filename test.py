@@ -3,6 +3,6 @@
 
 import Levenshtein
 
-k = "Woyouyigepingguo"
-query2 = "Woaiyige"
+k = "我是中国"
+query2 = "我爱中国"
 print(Levenshtein.ratio(k[:len(query2)], query2))

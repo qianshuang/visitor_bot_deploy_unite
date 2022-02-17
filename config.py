@@ -52,7 +52,7 @@ def build_bot_whoosh_index(bot_name, index_dir_):
     DICT_FILE_ = os.path.join(BOT_SRC_DIR, bot_name, "userdict.txt")
     intents_dict_ = {}
 
-    schema_ = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer()))
+    schema_ = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer(stoplist=None)))
     ix_ = create_in(index_dir_, schema_)
     writer_ = ix_.writer()
     for intent_ in read_file(INTENT_FILE_):
