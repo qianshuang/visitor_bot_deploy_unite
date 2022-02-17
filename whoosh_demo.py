@@ -5,6 +5,7 @@ import json
 from flask import Flask
 from flask import request
 from gevent import pywsgi
+from jieba.analyse import ChineseAnalyzer
 
 from whoosh import qparser
 from whoosh.index import create_in
@@ -17,7 +18,7 @@ import os
 
 app = Flask(__name__)
 
-schema = Schema(content=TEXT(stored=True))
+schema = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer()))
 if not os.path.exists("index"):
     os.mkdir("index")
 ix = create_in("index", schema)
@@ -38,7 +39,7 @@ def search():
     qp = QueryParser("content", ix.schema)
     # qp.add_plugin(qparser.FuzzyTermPlugin())
 
-    query = pre_process(query)
+    # query = pre_process(query)
     # query = " ".join([w + "~" for w in query.split(" ")])
 
     print(query)
@@ -46,9 +47,13 @@ def search():
     print(query)
 
     results = searcher.search(query)
+    print(results)
+    # print(results.score(0))
+    print(results.top_n)
 
     res = []
     for r in results:
+        print(r)
         res.extend(r.values())
     return {'code': 0, 'msg': 'success', 'data': res}
 
