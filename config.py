@@ -13,6 +13,7 @@ from whoosh.index import create_in
 from whoosh.fields import *
 from whoosh.qparser import QueryParser
 from jieba.analyse import ChineseAnalyzer
+from whoosh.query import FuzzyTerm
 
 from common import *
 
@@ -69,7 +70,7 @@ def build_bot_whoosh_index(bot_name, index_dir_):
 
 
 def build_bot_qp(bot_name, ix_):
-    qp_and_ = QueryParser("content", ix_.schema)
+    qp_and_ = QueryParser("content", ix_.schema, termclass=FuzzyTerm)
     # qp_and_.add_plugin(qparser.FuzzyTermPlugin())
     bot_qp[bot_name] = qp_and_
 

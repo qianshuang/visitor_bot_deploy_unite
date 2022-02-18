@@ -33,7 +33,7 @@ def search():
     resq_data = json.loads(ori_rd)
 
     bot_n = resq_data["bot_name"].strip()
-    data = resq_data["query"].strip()
+    data = resq_data["query"].strip(string.punctuation).strip(punctuation).strip()
     size = int(resq_data["size"]) if "size" in resq_data else default_size
 
     if pre_process_4_trie(data) == "":
@@ -43,27 +43,28 @@ def search():
     trie_res = smart_hint(bot_n, data)
     # 2. 断句前缀搜索
     if_split = bool(re.search(r'[,，.。？?！!（(”"]', data))
-    if len(trie_res) == 0 and if_split:
-        trie_res = smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip())
+    if if_split:
+        trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip())
     # 3. 拼音前缀搜索
-    if len(trie_res) == 0:
-        data_pinyin = get_pinyin(data)
-        trie_res = smart_hint(bot_n, data_pinyin)
+    data_pinyin = get_pinyin(data)
+    trie_res = trie_res + smart_hint(bot_n, data_pinyin)
     # 4. 断句拼音前缀搜索
-    if len(trie_res) == 0 and if_split:
-        trie_res = smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
+    if if_split:
+        trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
     # 5. 编辑距离
-    if len(trie_res) == 0:
-        trie_res = leven(bot_n, data)
+    priorities_res = bot_priorities[bot_n]
+    if len(set(priorities_res + trie_res)) < size:
+        trie_res = trie_res + leven(bot_n, data, size)
+    if if_split and len(set(priorities_res + trie_res)) < size:
+        trie_res = trie_res + leven(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip(), size)
 
     trie_res = [bot_intents_dict[bot_n][r] for r in trie_res]
-    priorities_res = bot_priorities[bot_n]
     ranked_trie_res = rank(bot_n, list(set(trie_res) - set(priorities_res)))
-    # 5. 全文检索
+    # 6. 全文检索
     if len(priorities_res + ranked_trie_res) >= size:
         whoosh_res = []
     else:
-        whoosh_res = whoosh_search(bot_n, data)
+        whoosh_res = whoosh_search(bot_n, data, size)
         whoosh_res = rank(bot_n, whoosh_res)
 
     ori_res = priorities_res + ranked_trie_res + whoosh_res
