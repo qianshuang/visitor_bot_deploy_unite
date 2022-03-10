@@ -111,6 +111,7 @@ def refresh():
     resq_data = json.loads(request.get_data())
     bot_n = resq_data["bot_name"].strip()
     operate = resq_data["operate"].strip()
+    src_bot_name = resq_data["src_bot_name"].strip() if "src_bot_name" in resq_data else ""
 
     if operate == "upsert":
         build_bot_intents_dict_trie(bot_n)
@@ -128,7 +129,11 @@ def refresh():
         return {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
     elif operate == "copy":
         # 复制bot。一方面不用从头训练，直接复用原始bot的能力；另一方面避免误删除bot
-        src_bot_name = resq_data["src_bot_name"].strip()
+        if src_bot_name == "":
+            return {'code': -1, 'msg': 'parameter error', 'time_cost': time_cost(start)}
+        if bot_n in os.listdir(BOT_SRC_DIR):
+            return {'code': -1, 'msg': bot_n + ' already exists', 'time_cost': time_cost(start)}
+
         src_bot_path = os.path.join(BOT_SRC_DIR, src_bot_name)
         bot_path = os.path.join(BOT_SRC_DIR, bot_n)
         shutil.copytree(src_bot_path, bot_path)
