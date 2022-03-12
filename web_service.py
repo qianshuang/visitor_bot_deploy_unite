@@ -126,6 +126,12 @@ def refresh():
         # 加载priority文件，越top优先级越高
         PRIORITY_FILE_ = os.path.join(BOT_SRC_DIR, bot_n, "priority.txt")
         bot_priorities[bot_n] = read_file(PRIORITY_FILE_)
+
+        if bot_n not in bot_recents:
+            bot_recents[bot_n] = []
+
+        if bot_n not in bot_frequency:
+            bot_frequency[bot_n] = {}
         return {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
     elif operate == "copy":
         # 复制bot。一方面不用从头训练，直接复用原始bot的能力；另一方面避免误删除bot
