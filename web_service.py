@@ -120,7 +120,7 @@ def refresh():
         if not os.path.exists(index_dir_):
             os.mkdir(index_dir_)
         ix_ = build_bot_whoosh_index(bot_n, index_dir_)
-        bot_searcher[bot_n] = ix_.searcher()
+        bot_searcher[bot_n] = ix_.searcher().refresh()
         build_bot_qp(bot_n, ix_)
 
         # 加载priority文件，越top优先级越高

@@ -13,6 +13,7 @@ from whoosh.index import create_in
 from whoosh.fields import *
 from whoosh.qparser import QueryParser
 from whoosh.query import FuzzyTerm
+from whoosh.writing import AsyncWriter
 
 from common import *
 
@@ -25,13 +26,14 @@ schema = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer(stoplist=None
 if not os.path.exists("index"):
     os.mkdir("index")
 ix = create_in("index", schema)
-writer = ix.writer()
+# writer = ix.writer()
+writer = AsyncWriter(ix)
 for line in read_file("bot_resources/bot1/intents.txt"):
     writer.add_document(content=line)
 writer.commit()
 print("building index finished...")
 
-searcher = ix.searcher()
+searcher = ix.searcher().refresh()
 
 
 @app.route('/search', methods=['GET', 'POST'])

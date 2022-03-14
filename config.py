@@ -9,6 +9,7 @@ import threading
 import marisa_trie
 
 # from whoosh import index
+from whoosh.writing import AsyncWriter
 from whoosh.index import create_in
 from whoosh.fields import *
 from whoosh.qparser import QueryParser
@@ -55,7 +56,8 @@ def build_bot_whoosh_index(bot_name, index_dir_):
 
     schema_ = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer(stoplist=None)))
     ix_ = create_in(index_dir_, schema_)
-    writer_ = ix_.writer()
+    # writer_ = ix_.writer()
+    writer_ = AsyncWriter(ix_)
     for intent_ in read_file(INTENT_FILE_):
         for ud in read_file(DICT_FILE_):
             intent_pro_ = intent_.replace(ud, " " + ud + " ")
@@ -87,7 +89,7 @@ for bot_na in os.listdir(BOT_SRC_DIR):
     ix = build_bot_whoosh_index(bot_na, index_dir)
     # else:
     #     ix = index.open_dir(index_dir)
-    bot_searcher[bot_na] = ix.searcher()
+    bot_searcher[bot_na] = ix.searcher().refresh()
 
     build_bot_qp(bot_na, ix)
     print(bot_na, "whoosh index finished building...")
