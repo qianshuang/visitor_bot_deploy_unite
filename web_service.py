@@ -51,12 +51,14 @@ def search():
     # 4. 断句拼音前缀搜索
     if if_split:
         trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
-    # 5. 编辑距离
+
     priorities_res = bot_priorities[bot_n]
-    if len(set(priorities_res + trie_res)) < size:
-        trie_res = trie_res + leven(bot_n, data, size)
-    if if_split and len(set(priorities_res + trie_res)) < size:
-        trie_res = trie_res + leven(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip(), size)
+
+    # 5. 编辑距离
+    # if len(set(priorities_res + trie_res)) < size:
+    #     trie_res = trie_res + leven(bot_n, data, size)
+    # if if_split and len(set(priorities_res + trie_res)) < size:
+    #     trie_res = trie_res + leven(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip(), size)
 
     trie_res = [bot_intents_dict[bot_n][r] for r in trie_res]
     ranked_trie_res = rank(bot_n, list(set(trie_res) - set(priorities_res)))
