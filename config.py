@@ -5,6 +5,7 @@ import schedule
 import os
 import json
 import threading
+import multiprocessing
 
 import marisa_trie
 
@@ -54,10 +55,10 @@ def build_bot_whoosh_index(bot_name, index_dir_):
     DICT_FILE_ = os.path.join(BOT_SRC_DIR, bot_name, "userdict.txt")
     intents_dict_ = {}
 
-    schema_ = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer(stoplist=None)))
+    schema_ = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer(stoplist=None, cachesize=-1)))
     ix_ = create_in(index_dir_, schema_)
     # writer_ = ix_.writer()
-    writer_ = AsyncWriter(ix_)
+    writer_ = AsyncWriter(ix_, writerargs={"limitmb": 1024, "procs": multiprocessing.cpu_count()})
     for intent_ in read_file(INTENT_FILE_):
         for ud in read_file(DICT_FILE_):
             intent_pro_ = intent_.replace(ud, " " + ud + " ")
@@ -65,7 +66,7 @@ def build_bot_whoosh_index(bot_name, index_dir_):
             writer_.add_document(content=intent_pro_)
         intents_dict_[intent_] = intent_
         writer_.add_document(content=intent_)
-    writer_.commit()
+    writer_.commit(optimize=True)
 
     bot_intents_whoosh_dict[bot_name] = intents_dict_
     return ix_
@@ -89,7 +90,7 @@ for bot_na in os.listdir(BOT_SRC_DIR):
     ix = build_bot_whoosh_index(bot_na, index_dir)
     # else:
     #     ix = index.open_dir(index_dir)
-    bot_searcher[bot_na] = ix.searcher().refresh()
+    bot_searcher[bot_na] = ix.refresh().searcher().refresh()
 
     build_bot_qp(bot_na, ix)
     print(bot_na, "whoosh index finished building...")

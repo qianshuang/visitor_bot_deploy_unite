@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
+# from common import *
 # from fuzzywuzzy import fuzz
-from fuzzywuzzy import process
+# from fuzzywuzzy import process
+# from fuzzyfinder import fuzzyfinder
 
 #
 # print(fuzz.ratio("this is a 我 test", "this is a test!"))
@@ -20,4 +22,16 @@ from fuzzywuzzy import process
 # print(q.strip(string.punctuation).strip(punctuation).strip())
 # print(punctuation)
 
-print(process.extract("howmach", ["howmuchisthisapple", "你是谁"], limit=10))
+# print(process.extract("howmach", ["howmuchisthisapple", "你是谁"], limit=10))
+
+# suggestions = fuzzyfinder('abc', ['defabca', 'abcd', 'aagbec', 'xyz', 'qux'])
+# print(list(suggestions))
+
+# lines = read_file("bot_resources/HE long version4/intents.txt")
+# start = datetime.datetime.now()
+# suggestions = fuzzyfinder('setting up my quickbook', lines)
+# print(list(suggestions))
+# print(time_cost(start))
+import Levenshtein
+
+print(Levenshtein.ratio("wojiaolihuanyin", "wojiaolihaanyin"))

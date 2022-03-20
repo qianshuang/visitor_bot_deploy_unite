@@ -51,25 +51,23 @@ def search():
     # 4. 断句拼音前缀搜索
     if if_split:
         trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
+    # 5. 全文检索
+    whoosh_res = whoosh_search(bot_n, data, size)
+    # whoosh_res = rank(bot_n, whoosh_res)
 
     priorities_res = bot_priorities[bot_n]
-
-    # 5. 编辑距离
-    # if len(set(priorities_res + trie_res)) < size:
-    #     trie_res = trie_res + leven(bot_n, data, size)
-    # if if_split and len(set(priorities_res + trie_res)) < size:
-    #     trie_res = trie_res + leven(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip(), size)
-
     trie_res = [bot_intents_dict[bot_n][r] for r in trie_res]
     ranked_trie_res = rank(bot_n, list(set(trie_res) - set(priorities_res)))
-    # 6. 全文检索
-    if len(priorities_res + ranked_trie_res) >= size:
-        whoosh_res = []
-    else:
-        whoosh_res = whoosh_search(bot_n, data, size)
-        whoosh_res = rank(bot_n, whoosh_res)
 
-    ori_res = priorities_res + ranked_trie_res + whoosh_res
+    # 6. 编辑距离
+    leven_res = []
+    if len(set(priorities_res + ranked_trie_res + whoosh_res)) < size:
+        if if_split:
+            data = re.split(r'[,，.。？?！!（(”"]', data)[-1].strip()
+        leven_res = leven(bot_n, data, size)
+    ranked_leven_res = rank(bot_n, list(set(leven_res) - set(priorities_res + ranked_trie_res + whoosh_res)))
+
+    ori_res = priorities_res + ranked_trie_res + whoosh_res + ranked_leven_res
     final_res = sorted(set(ori_res), key=ori_res.index)  # 保序去重
     return {'code': 0, 'msg': 'success', 'data': final_res[:size]}
 
@@ -122,7 +120,7 @@ def refresh():
         if not os.path.exists(index_dir_):
             os.mkdir(index_dir_)
         ix_ = build_bot_whoosh_index(bot_n, index_dir_)
-        bot_searcher[bot_n] = ix_.searcher().refresh()
+        bot_searcher[bot_n] = ix_.refresh().searcher().refresh()
         build_bot_qp(bot_n, ix_)
 
         # 加载priority文件，越top优先级越高

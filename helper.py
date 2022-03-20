@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from fuzzywuzzy import process
+import Levenshtein
+# from fuzzywuzzy import process
 import pandas as pd
 from config import *
 
@@ -42,20 +43,24 @@ def smart_hint(bot_n, query):
     return list(result)
 
 
+# def leven(bot_n, query, lim=10):  # 有性能问题
+#     query1 = pre_process_4_trie(query)
+#     query2 = get_pinyin(query1)
+#
+#     q2_res = process.extract(query2, bot_intents_dict[bot_n].keys(), limit=lim)
+#     final_res = [bot_intents_dict[bot_n][r[0]] for r in q2_res if r[1] >= 75]
+#     return final_res
+
 def leven(bot_n, query, lim=10):
     query1 = pre_process_4_trie(query)
     query2 = get_pinyin(query1)
 
-    q1_res = process.extract(query1, bot_intents_dict[bot_n].keys(), limit=lim)
-    q2_res = process.extract(query2, bot_intents_dict[bot_n].keys(), limit=lim)
-
-    final_res = set([r[0] for r in (q1_res + q2_res) if r[1] >= 75])
-    return list(final_res)
-
-    # res = []
-    # for k in bot_intents_dict[bot_n].keys():
-    #     score1 = Levenshtein.ratio(k[:len(query1)], query1)
-    #     score2 = Levenshtein.ratio(k[:len(query2)], query2)
-    #     if score1 >= 0.8 or score2 >= 0.8:
-    #         res.append(k)
-    # return res
+    res = []
+    for k in bot_intents_dict[bot_n].keys():
+        if len(query2) <= len(k):
+            for i in range(len(k) - len(query2)):
+                score2 = Levenshtein.ratio(k[i:i + len(query2)], query2)
+                if score2 >= 0.8:
+                    res.append(bot_intents_dict[bot_n][k])
+                    break
+    return res
