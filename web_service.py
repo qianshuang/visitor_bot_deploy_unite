@@ -4,7 +4,7 @@ import shutil
 
 from flask import Flask, jsonify
 from flask import request
-from gevent import pywsgi
+# from gevent import pywsgi
 
 from helper import *
 
@@ -18,7 +18,8 @@ def search():
     {
         "bot_name": "xxxxxx",  # 要查询的bot name
         "query": "xxxxxx",  # 用户query
-        "size": 10         # 最大返回大小，默认10
+        "size": 10,         # 最大返回大小，默认10
+        "cn_enable": true   # 默认为false，不开启中文拼音强化功能，性能较差
     }
 
     return:
@@ -35,6 +36,7 @@ def search():
     bot_n = resq_data["bot_name"].strip()
     data = resq_data["query"].strip(string.punctuation).strip(punctuation).strip()
     size = int(resq_data["size"]) if "size" in resq_data else default_size
+    cn_enable = resq_data["cn_enable"] if "cn_enable" in resq_data else False
 
     if pre_process_4_trie(data) == "":
         return {'code': 0, 'msg': 'success', 'data': []}
@@ -45,12 +47,13 @@ def search():
     if_split = bool(re.search(r'[,，.。？?！!（(”"]', data))
     if if_split:
         trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data)[-1].strip())
-    # 3. 拼音前缀搜索
-    data_pinyin = get_pinyin(data)
-    trie_res = trie_res + smart_hint(bot_n, data_pinyin)
-    # 4. 断句拼音前缀搜索
-    if if_split:
-        trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
+    if cn_enable:
+        # 3. 拼音前缀搜索
+        data_pinyin = get_pinyin(data)
+        trie_res = trie_res + smart_hint(bot_n, data_pinyin)
+        # 4. 断句拼音前缀搜索
+        if if_split:
+            trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
     # 5. 全文检索
     whoosh_res = whoosh_search(bot_n, data, size)
     # whoosh_res = rank(bot_n, whoosh_res)
@@ -59,12 +62,13 @@ def search():
     trie_res = [bot_intents_dict[bot_n][r] for r in trie_res]
     ranked_trie_res = rank(bot_n, list(set(trie_res) - set(priorities_res)))
 
-    # 6. 编辑距离
+    # 6. 编辑距离（仅在中文bot开启）
     leven_res = []
-    if len(set(priorities_res + ranked_trie_res + whoosh_res)) < size:
-        if if_split:
-            data = re.split(r'[,，.。？?！!（(”"]', data)[-1].strip()
-        leven_res = leven(bot_n, data, size)
+    if cn_enable:
+        if len(set(priorities_res + ranked_trie_res + whoosh_res)) < size:
+            if if_split:
+                data = re.split(r'[,，.。？?！!（(”"]', data)[-1].strip()
+            leven_res = leven(bot_n, data, size)
     ranked_leven_res = rank(bot_n, list(set(leven_res) - set(priorities_res + ranked_trie_res + whoosh_res)))
 
     ori_res = priorities_res + ranked_trie_res + whoosh_res + ranked_leven_res
@@ -173,6 +177,7 @@ def refresh():
 
 
 if __name__ == '__main__':
-    server = pywsgi.WSGIServer(('0.0.0.0', 8088), app)
-    server.serve_forever()
+    # server = pywsgi.WSGIServer(('0.0.0.0', 8088), app)
+    # server.serve_forever()
     # app.run(debug=False, threaded=True, host='0.0.0.0', port=8088)
+    app.run()

@@ -32,6 +32,16 @@
 # suggestions = fuzzyfinder('setting up my quickbook', lines)
 # print(list(suggestions))
 # print(time_cost(start))
-import Levenshtein
 
-print(Levenshtein.ratio("wojiaolihuanyin", "wojiaolihaanyin"))
+import requests
+import json
+
+post_data = json.dumps({
+    "bot_name": "banking demo4",
+    "query": "cus",
+    "size": 500
+})
+
+for i in range(100):
+    r = requests.post("http://127.0.0.1:8088/search", data=post_data)
+    print(r.text)
