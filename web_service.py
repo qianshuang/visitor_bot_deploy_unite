@@ -175,9 +175,8 @@ def refresh():
     else:
         return {'code': -1, 'msg': 'unsupported operation', 'time_cost': time_cost(start)}
 
-
-if __name__ == '__main__':
-    # server = pywsgi.WSGIServer(('0.0.0.0', 8088), app)
-    # server.serve_forever()
-    # app.run(debug=False, threaded=True, host='0.0.0.0', port=8088)
-    app.run()
+# if __name__ == '__main__':
+# server = pywsgi.WSGIServer(('0.0.0.0', 8088), app)
+# server.serve_forever()
+# app.run(debug=False, threaded=True, host='0.0.0.0', port=8088)
+# app.run()

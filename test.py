@@ -35,6 +35,7 @@
 
 import requests
 import json
+from common import *
 
 post_data = json.dumps({
     "bot_name": "banking demo4",
@@ -42,6 +43,8 @@ post_data = json.dumps({
     "size": 500
 })
 
-for i in range(100):
+for i in range(1000):
+    start = datetime.datetime.now()
     r = requests.post("http://127.0.0.1:8088/search", data=post_data)
-    print(r.text)
+    # print(r.text)
+    print(time_cost(start))
