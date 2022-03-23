@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 
+from gevent import monkey
+
+monkey.patch_all()
 import shutil
+from multiprocessing import Process
+
+from helper import *
 
 from flask import Flask, jsonify
 from flask import request
-# from gevent import pywsgi
-
-from helper import *
+from gevent import pywsgi
 
 app = Flask(__name__)
 
@@ -175,8 +179,18 @@ def refresh():
     else:
         return {'code': -1, 'msg': 'unsupported operation', 'time_cost': time_cost(start)}
 
-# if __name__ == '__main__':
-# server = pywsgi.WSGIServer(('0.0.0.0', 8088), app)
-# server.serve_forever()
-# app.run(debug=False, threaded=True, host='0.0.0.0', port=8088)
-# app.run()
+
+if __name__ == '__main__':
+    # app.run(debug=False, threaded=True, host='0.0.0.0', port=8088, processes=True)
+    server = pywsgi.WSGIServer(('0.0.0.0', 8088), app)
+    server.start()
+
+
+    def serve_forever():
+        server.start_accepting()
+        server._stop_event.wait()
+
+
+    for i in range(multiprocessing.cpu_count()):
+        p = Process(target=serve_forever())
+        p.start()
