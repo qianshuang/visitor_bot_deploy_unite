@@ -33,7 +33,7 @@ for line in read_file("bot_resources/bot1/intents.txt"):
 writer.commit()
 print("building index finished...")
 
-searcher = ix.searcher().refresh()
+searcher = ix.refresh().searcher().refresh()
 
 
 @app.route('/search', methods=['GET', 'POST'])

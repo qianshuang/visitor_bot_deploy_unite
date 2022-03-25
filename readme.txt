@@ -17,7 +17,5 @@ gunicorn -w 4 -k gevent -b 0.0.0.0:8088 --threads 100 --worker-connections 10000
 gunicorn -b 0.0.0.0:8088 --threads 100 --worker-connections 10000 web_service:app
 
 
-全文检索优化实现（性能不能达到要求时再考虑）：
-1. 通过intents计算bot词典表
-2. 去除停用词
-3. 判断最后一个输入单词是否在词典表，若在，走全文检索
+Redis安装：
+https://redis.io/docs/getting-started/installation/install-redis-on-mac-os/
