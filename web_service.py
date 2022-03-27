@@ -1,18 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import shutil
-# from multiprocessing import Process
+import json
 
 from helper import *
 
-# from gevent import monkey
-#
-# monkey.patch_all()
-
 from flask import Flask, jsonify
 from flask import request
-
-# from gevent import pywsgi
 
 app = Flask(__name__)
 
@@ -34,6 +28,9 @@ def search():
         'data': []
     }
     """
+    start = datetime.datetime.now()
+    print("process id:", os.getpid())
+
     ori_rd = request.get_data(as_text=True)
     ori_rd = ori_rd.replace('\\"', ',')
     ori_rd = ori_rd.replace('\\', '')
@@ -46,6 +43,10 @@ def search():
 
     if pre_process_4_trie(data) == "":
         return {'code': 0, 'msg': 'success', 'data': []}
+
+    # 0. 同步Redis缓存
+    rsync(bot_n)
+    print("rsync:", time_cost(start))
 
     # 1. 前缀搜索
     trie_res = smart_hint(bot_n, data)
@@ -60,13 +61,16 @@ def search():
         # 4. 断句拼音前缀搜索
         if if_split:
             trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
+    print("trie:", time_cost(start))
+
     # 5. 全文检索
     whoosh_res = whoosh_search(bot_n, data, size)
     # whoosh_res = rank(bot_n, whoosh_res)
+    print("whoosh:", time_cost(start))
 
-    priorities_res = bot_priorities[bot_n]
-    trie_res = [bot_intents_dict[bot_n][r] for r in trie_res]
+    priorities_res = get_priorities(bot_n)
     ranked_trie_res = rank(bot_n, list(set(trie_res) - set(priorities_res)))
+    print("priorities:", time_cost(start))
 
     # 6. 编辑距离（仅在中文bot开启）
     leven_res = []
@@ -74,11 +78,13 @@ def search():
         if len(set(priorities_res + ranked_trie_res + whoosh_res)) < size:
             if if_split:
                 data = re.split(r'[,，.。？?！!（(”"]', data)[-1].strip()
-            leven_res = leven(bot_n, data, size)
+            leven_res = leven(bot_n, data)
     ranked_leven_res = rank(bot_n, list(set(leven_res) - set(priorities_res + ranked_trie_res + whoosh_res)))
 
     ori_res = priorities_res + ranked_trie_res + whoosh_res + ranked_leven_res
+    # ori_res = [str(or_, encoding='utf-8') for or_ in ori_res]
     final_res = sorted(set(ori_res), key=ori_res.index)  # 保序去重
+    print("rank:", time_cost(start))
     return {'code': 0, 'msg': 'success', 'data': final_res[:size]}
 
 
@@ -95,13 +101,13 @@ def callback():
     intent = resq_data["intent"].strip()
 
     # 回写recent文件
-    if intent in bot_recents[bot_n]:
-        bot_recents[bot_n].remove(intent)
-    bot_recents[bot_n].insert(0, intent)
+    rk_bot_recent = "bot_recent&" + bot_n
+    r.lrem(rk_bot_recent, 0, intent)
+    r.lpush(rk_bot_recent, intent)
 
     # 回写frequency文件
-    bot_frequency[bot_n].setdefault(intent, 0)
-    bot_frequency[bot_n][intent] = bot_frequency[bot_n][intent] + 1
+    rk_bot_frequency = "bot_frequency&" + bot_n
+    r.hincrby(rk_bot_frequency, intent)
 
     result = {'code': 0, 'msg': 'success', 'data': resq_data}
     return jsonify(result)
@@ -121,79 +127,50 @@ def refresh():
     resq_data = json.loads(request.get_data())
     bot_n = resq_data["bot_name"].strip()
     operate = resq_data["operate"].strip()
-    src_bot_name = resq_data["src_bot_name"].strip() if "src_bot_name" in resq_data else ""
 
-    if operate == "upsert":
-        build_bot_intents_dict_trie(bot_n)
-        # rebuild whoosh索引文件
-        index_dir_ = os.path.join(BOT_SRC_DIR, bot_n, "index")
-        if not os.path.exists(index_dir_):
-            os.mkdir(index_dir_)
-        ix_ = build_bot_whoosh_index(bot_n, index_dir_)
-        bot_searcher[bot_n] = ix_.refresh().searcher().refresh()
-        build_bot_qp(bot_n, ix_)
+    # 加锁
+    bot_lock = redis_lock.Lock(r, "lock_" + bot_n)
+    if bot_lock.acquire(blocking=False):
+        if operate == "upsert":
+            build_bot_intents_dict_trie(bot_n)
+            print(bot_n, "intents dict and trie finished rebuilding...")
 
-        # 加载priority文件，越top优先级越高
-        PRIORITY_FILE_ = os.path.join(BOT_SRC_DIR, bot_n, "priority.txt")
-        bot_priorities[bot_n] = read_file(PRIORITY_FILE_)
+            index_dir_ = os.path.join(BOT_SRC_DIR, bot_n, "index")
+            if not os.path.exists(index_dir_):
+                os.mkdir(index_dir_)
+            build_bot_whoosh_index(bot_n, index_dir_)
+            print(bot_n, "whoosh index finished rebuilding...")
 
-        if bot_n not in bot_recents:
-            bot_recents[bot_n] = []
+            build_bot_priorities(bot_n)
+            print(bot_n, "priority file finished reloading...")
 
-        if bot_n not in bot_frequency:
-            bot_frequency[bot_n] = {}
-        return {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
-    elif operate == "copy":
-        # 复制bot。一方面不用从头训练，直接复用原始bot的能力；另一方面避免误删除bot
-        if src_bot_name == "":
-            return {'code': -1, 'msg': 'parameter error', 'time_cost': time_cost(start)}
-        if bot_n in os.listdir(BOT_SRC_DIR):
-            return {'code': -1, 'msg': bot_n + ' already exists', 'time_cost': time_cost(start)}
+            r_v = r.hincrby("bot_version", bot_n)
+            r.hset("bot_version&" + bot_n, str(os.getpid()), r_v)
 
-        src_bot_path = os.path.join(BOT_SRC_DIR, src_bot_name)
-        bot_path = os.path.join(BOT_SRC_DIR, bot_n)
-        shutil.copytree(src_bot_path, bot_path)
+            ret = {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
+        elif operate == "delete":
+            # 删除bot
+            bot_path = os.path.join(BOT_SRC_DIR, bot_n)
+            if os.path.exists(bot_path):
+                shutil.rmtree(bot_path)
+            r.delete("bot_intents&" + bot_n)
+            r.delete("bot_intents_whoosh&" + bot_n)
+            r.delete("bot_recent&" + bot_n)
+            r.delete("bot_frequency&" + bot_n)
+            r.delete("bot_priorities&" + bot_n)
+            r.delete("bot_version&" + bot_n)
+            r.hdel("bot_trie", bot_n)
+            r.hdel("bot_whoosh", bot_n)
+            r.hdel("bot_version", bot_n)
+            ret = {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
+        else:
+            ret = {'code': -1, 'msg': 'unsupported operation', 'time_cost': time_cost(start)}
 
-        bot_intents_dict[bot_n] = bot_intents_dict[src_bot_name]
-        bot_intents_whoosh_dict[bot_n] = bot_intents_whoosh_dict[src_bot_name]
-        bot_priorities[bot_n] = bot_priorities[src_bot_name]
-        bot_recents[bot_n] = bot_recents[src_bot_name]
-        bot_frequency[bot_n] = bot_frequency[src_bot_name]
-
-        bot_searcher[bot_n] = bot_searcher[src_bot_name]
-        bot_qp[bot_n] = bot_qp[src_bot_name]
-        return {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
-    elif operate == "delete":
-        # 删除bot
-        try:
-            shutil.rmtree(os.path.join(BOT_SRC_DIR, bot_n))
-            del bot_intents_dict[bot_n]
-            del bot_intents_whoosh_dict[bot_n]
-            del bot_recents[bot_n]
-            del bot_frequency[bot_n]
-            del bot_priorities[bot_n]
-
-            del bot_searcher[bot_n]
-            del bot_qp[bot_n]
-        except:
-            print(bot_n, "deleted already...")
-        return {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
+        bot_lock.release()
+        return ret
     else:
-        return {'code': -1, 'msg': 'unsupported operation', 'time_cost': time_cost(start)}
+        return {'code': -2, 'msg': 'someone is refreshing this bot, please wait.', 'time_cost': time_cost(start)}
 
 
 if __name__ == '__main__':
     app.run()
-    # app.run(debug=False, threaded=True, host='0.0.0.0', port=8088, processes=True)
-    # server = pywsgi.WSGIServer(('0.0.0.0', 8088), app)
-    # server.start()
-    #
-    #
-    # def serve_forever():
-    #     server.start_accepting()
-    #     server._stop_event.wait()
-    #
-    #
-    # for i in range(multiprocessing.cpu_count()):
-    #     p = Process(target=serve_forever())
-    #     p.start()

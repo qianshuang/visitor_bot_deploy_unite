@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import pickle
 import string
+import os
 import re
 import datetime
 import pypinyin
@@ -12,6 +14,8 @@ def open_file(filename, mode='r'):
 
 
 def read_file(filename):
+    if not os.path.exists(filename):
+        return []
     return [line.strip() for line in open(filename).readlines() if line.strip() != ""]
 
 
@@ -50,3 +54,23 @@ def time_cost(start, type_="sec"):
         return interval.total_seconds()
     elif type_ == "day":
         return interval.days
+
+
+def r_set_pickled(r, name, key, value):
+    return r.hset(name, key, pickle.dumps(value))
+
+
+def r_get_pickled(r, name, key):
+    return pickle.loads(r.hget(name, key))
+
+
+def r_to_str_list(r, name):
+    r_list = r.lrange(name, 0, -1)
+    return [str(i, encoding='utf-8') for i in r_list]
+
+
+def r_to_dict(r, name, v_type="str"):
+    r_dict = r.hgetall(name)
+    if v_type == "int":
+        return {str(k, encoding='utf-8'): int(v) for k, v in r_dict.items()}
+    return {str(k, encoding='utf-8'): str(v, encoding='utf-8') for k, v in r_dict.items()}

@@ -14,8 +14,7 @@
 
 注：高并发时，采用gunicorn服务启动及部署方式，本web_service不支持高并发。
 gunicorn -w 4 -k gevent -b 0.0.0.0:8088 --threads 100 --worker-connections 10000 web_service:app
-gunicorn -b 0.0.0.0:8088 --threads 100 --worker-connections 10000 web_service:app
 
 
-Redis安装：
-https://redis.io/docs/getting-started/installation/install-redis-on-mac-os/
+Redis安装：https://redis.io/docs/getting-started/installation/install-redis-on-mac-os/
+启动：redis-server

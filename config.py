@@ -1,21 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import time
-import schedule
-import os
-import json
-import threading
-import multiprocessing
+import redis
+import redis_lock
 
 import marisa_trie
 
-# from whoosh import index
-from whoosh.writing import AsyncWriter
 from whoosh.index import create_in
 from whoosh.fields import *
-from whoosh.qparser import QueryParser
 from jieba.analyse import ChineseAnalyzer
-from whoosh.query import FuzzyTerm
 
 from common import *
 
@@ -23,135 +15,110 @@ BOT_SRC_DIR = "bot_resources"
 # 默认返回大小
 default_size = 10
 
+# 本地缓存
 bot_intents_dict = {}
 bot_intents_whoosh_dict = {}
 bot_priorities = {}
 bot_recents = {}
 bot_frequency = {}
-
-bot_searcher = {}
-bot_qp = {}
-
 bot_trie = {}
+bot_whoosh = {}
+
+r = redis.Redis()
+global_lock = redis_lock.Lock(r, "global_lock")
 
 
 def build_bot_intents_dict_trie(bot_name):
+    rk_bot_intents = "bot_intents&" + bot_name
     INTENT_FILE_ = os.path.join(BOT_SRC_DIR, bot_name, "intents.txt")
     intents_dict_ = {}
     for intent_ in read_file(INTENT_FILE_):
         intent_pro_ = pre_process_4_trie(intent_)
+        r.hset(rk_bot_intents, intent_pro_, intent_)
         intents_dict_[intent_pro_] = intent_
 
         intent_pinyin_ = get_pinyin(intent_pro_)
+        r.hset(rk_bot_intents, intent_pinyin_, intent_)
         intents_dict_[intent_pinyin_] = intent_
-    bot_intents_dict[bot_name] = intents_dict_
 
-    trie = marisa_trie.Trie(list(intents_dict_.keys()))
+    all_intents = [str(k) for k in r.hkeys(rk_bot_intents)]
+    trie = marisa_trie.Trie(all_intents)
+    r_set_pickled(r, "bot_trie", bot_name, trie)
+
+    bot_intents_dict[bot_name] = intents_dict_
     bot_trie[bot_name] = trie
 
 
 def build_bot_whoosh_index(bot_name, index_dir_):
+    rk_bot_intents_whoosh = "bot_intents_whoosh&" + bot_name
     INTENT_FILE_ = os.path.join(BOT_SRC_DIR, bot_name, "intents.txt")
     DICT_FILE_ = os.path.join(BOT_SRC_DIR, bot_name, "userdict.txt")
     intents_dict_ = {}
 
     schema_ = Schema(content=TEXT(stored=True, analyzer=ChineseAnalyzer(stoplist=None, cachesize=-1)))
     ix_ = create_in(index_dir_, schema_)
-    # writer_ = ix_.writer()
-    writer_ = AsyncWriter(ix_, writerargs={"limitmb": 1024, "procs": multiprocessing.cpu_count()})
+    writer_ = ix_.writer()
+    # writer_ = AsyncWriter(ix_, writerargs={"limitmb": 1024, "procs": multiprocessing.cpu_count()})
     for intent_ in read_file(INTENT_FILE_):
         for ud in read_file(DICT_FILE_):
             intent_pro_ = intent_.replace(ud, " " + ud + " ")
+            r.hset(rk_bot_intents_whoosh, intent_pro_, intent_)
             intents_dict_[intent_pro_] = intent_
             writer_.add_document(content=intent_pro_)
+        r.hset(rk_bot_intents_whoosh, intent_, intent_)
         intents_dict_[intent_] = intent_
         writer_.add_document(content=intent_)
     writer_.commit(optimize=True)
 
+    r_set_pickled(r, "bot_whoosh", bot_name, ix_)
     bot_intents_whoosh_dict[bot_name] = intents_dict_
-    return ix_
+    bot_whoosh[bot_name] = ix_
 
 
-def build_bot_qp(bot_name, ix_):
-    qp_and_ = QueryParser("content", ix_.schema, termclass=FuzzyTerm)
-    # qp_and_.add_plugin(qparser.FuzzyTermPlugin())
-    bot_qp[bot_name] = qp_and_
+def build_bot_priorities(bot_name):
+    rk_bot_priorities = "bot_priorities&" + bot_name
+    PRIORITY_FILE = os.path.join(BOT_SRC_DIR, bot_name, "priority.txt")
+
+    r.delete(rk_bot_priorities)
+    for line in read_file(PRIORITY_FILE):
+        r.rpush(rk_bot_priorities, line)
+    bot_priorities[bot_name] = read_file(PRIORITY_FILE)
 
 
-for bot_na in os.listdir(BOT_SRC_DIR):
-    # build bot intent dict
-    build_bot_intents_dict_trie(bot_na)
-    print(bot_na, "intents dict and trie finished building...")
+redis_lock.reset_all(r)
 
-    # 加载whoosh索引文件
-    index_dir = os.path.join(BOT_SRC_DIR, bot_na, "index")
-    if not os.path.exists(index_dir):
-        os.mkdir(index_dir)
-    ix = build_bot_whoosh_index(bot_na, index_dir)
-    # else:
-    #     ix = index.open_dir(index_dir)
-    bot_searcher[bot_na] = ix.refresh().searcher().refresh()
+if global_lock.acquire(blocking=False):
+    for bot_na in os.listdir(BOT_SRC_DIR):
+        # 创建bot lock
+        redis_lock.Lock(r, "lock_" + bot_na)
 
-    build_bot_qp(bot_na, ix)
-    print(bot_na, "whoosh index finished building...")
+        # 创建bot version
+        r.hdel("bot_version", bot_na)
+        r.hdel("bot_version&" + bot_na, str(os.getpid()))
+        r_v_ = r.hincrby("bot_version", bot_na)
+        r.hset("bot_version&" + bot_na, str(os.getpid()), r_v_)
 
-    # 加载priority文件，越top优先级越高
-    PRIORITY_FILE = os.path.join(BOT_SRC_DIR, bot_na, "priority.txt")
-    bot_priorities[bot_na] = read_file(PRIORITY_FILE)
-    print(bot_na, "priority file finished loading...")
+        # build bot intent dict
+        build_bot_intents_dict_trie(bot_na)
+        print(bot_na, "intents dict and trie finished building...")
 
-    # 读取recent文件，越top优先级越高
-    RECENT_FILE = os.path.join(BOT_SRC_DIR, bot_na, "recent.txt")
-    if not os.path.exists(RECENT_FILE):
-        recents = []
-    else:
-        recents = read_file(RECENT_FILE)
-    bot_recents[bot_na] = recents
-    print(bot_na, "recent file finished loading...")
+        # 加载whoosh索引文件
+        index_dir = os.path.join(BOT_SRC_DIR, bot_na, "index")
+        if not os.path.exists(index_dir):
+            os.mkdir(index_dir)
+        build_bot_whoosh_index(bot_na, index_dir)
+        print(bot_na, "whoosh index finished building...")
 
-    # 读取frequency文件
-    FREQUENCY_FILE = os.path.join(BOT_SRC_DIR, bot_na, "frequency.json")
-    if not os.path.exists(FREQUENCY_FILE):
-        frequency = {}
-    else:
-        with open(FREQUENCY_FILE, encoding="utf-8") as f:
-            frequency = json.load(f)
-    bot_frequency[bot_na] = frequency
-    print(bot_na, "frequency file finished loading...")
+        # 加载priority文件，越top优先级越高
+        build_bot_priorities(bot_na)
+        print(bot_na, "priority file finished loading...")
 
+        # 设置过期时间
+        bot_recents[bot_na] = r_to_str_list(r, "bot_recent&" + bot_na)
+        bot_frequency[bot_na] = r_to_dict(r, "bot_frequency&" + bot_na, "int")
+        r.expire("bot_recent&" + bot_na, 30 * 24 * 3600)  # 设置过期时间30天
+        r.expire("bot_frequency&" + bot_na, 30 * 24 * 3600)  # 设置过期时间30天
 
-# 每天写入资源文件
-def run_resources():
-    for _bot_name_ in os.listdir(BOT_SRC_DIR):
-        print(_bot_name_, 'starting writing resource files...')
-        write_lines(os.path.join(BOT_SRC_DIR, _bot_name_, "recent.txt"), bot_recents[_bot_name_])
-        open_file(os.path.join(BOT_SRC_DIR, _bot_name_, "frequency.json"), mode='w').write(
-            json.dumps(bot_frequency[_bot_name_], ensure_ascii=False))
-
-
-# 每30天reset排序因子
-def run_resort():
-    for bot_n in os.listdir(BOT_SRC_DIR):
-        bot_recents[bot_n] = []
-        bot_frequency[bot_n] = {}
-
-        recent_file_path = os.path.join(BOT_SRC_DIR, bot_n, "recent.txt")
-        freq_file_path = os.path.join(BOT_SRC_DIR, bot_n, "frequency.json")
-        if os.path.exists(recent_file_path):
-            os.remove(recent_file_path)
-        if os.path.exists(freq_file_path):
-            os.remove(freq_file_path)
-
-
-schedule.every().day.do(run_resources)
-schedule.every(30).days.do(run_resort)
-
-
-# 多线程调度
-def run_schedule():
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
-
-threading.Thread(target=run_schedule).start()
+    global_lock.release()
+else:
+    print("Someone else has the lock.")

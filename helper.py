@@ -1,9 +1,28 @@
 # -*- coding: utf-8 -*-
 
 import Levenshtein
-# from fuzzywuzzy import process
 import pandas as pd
+
+from whoosh.qparser import QueryParser
+from whoosh.query import FuzzyTerm
+
 from config import *
+
+
+def rsync(bot_n):
+    bot_version = r.hget("bot_version", bot_n)
+    bot_process_version = r.hget("bot_version&" + bot_n, str(os.getpid()))
+
+    if bot_version != bot_process_version:
+        print("starting rsync...")
+        bot_intents_dict[bot_n] = r_to_dict(r, "bot_intents&" + bot_n)
+        bot_intents_whoosh_dict[bot_n] = r_to_dict(r, "bot_intents_whoosh&" + bot_n)
+        bot_priorities[bot_n] = r_to_str_list(r, "bot_priorities&" + bot_n)
+        bot_recents[bot_n] = r_to_str_list(r, "bot_recent&" + bot_n)
+        bot_frequency[bot_n] = r_to_dict(r, "bot_frequency&" + bot_n, "int")
+        bot_trie[bot_n] = r_get_pickled(r, "bot_trie", bot_n)
+        bot_whoosh[bot_n] = r_get_pickled(r, "bot_whoosh", bot_n)
+        r.hset("bot_version&" + bot_n, str(os.getpid()), int(bot_version))
 
 
 def rank(bot_n, trie_res):
@@ -25,16 +44,19 @@ def rank(bot_n, trie_res):
 
 
 def whoosh_search(bot_n, query, lim=10):
-    query = bot_qp[bot_n].parse(query)
-    print(query)
+    ix_ = bot_whoosh[bot_n]
+    qp_and_ = QueryParser("content", ix_.schema, termclass=FuzzyTerm)
+    # qp_and_.add_plugin(qparser.FuzzyTermPlugin())
 
-    results = bot_searcher[bot_n].search(query, limit=lim)
-    # 还原源文本
+    query = qp_and_.parse(query)
+    # print(query)
+
+    results = ix_.searcher().search(query, limit=lim)
+    # 还原原文本
     res = []
-    for r in results:
-        res.extend(r.values())
-    # return res
-    return [bot_intents_whoosh_dict[bot_n][r] for r in res]
+    for r_ in results:
+        res.extend(r_.values())
+    return [bot_intents_whoosh_dict[bot_n][r_] for r_ in res]
 
 
 def smart_hint(bot_n, query):
@@ -51,7 +73,7 @@ def smart_hint(bot_n, query):
 #     final_res = [bot_intents_dict[bot_n][r[0]] for r in q2_res if r[1] >= 75]
 #     return final_res
 
-def leven(bot_n, query, lim=10):
+def leven(bot_n, query):
     query1 = pre_process_4_trie(query)
     query2 = get_pinyin(query1)
 
@@ -64,3 +86,7 @@ def leven(bot_n, query, lim=10):
                     res.append(bot_intents_dict[bot_n][k])
                     break
     return res
+
+
+def get_priorities(bot_n):
+    return bot_priorities[bot_n]

@@ -33,19 +33,16 @@
 # print(list(suggestions))
 # print(time_cost(start))
 
-import requests
-import json
-from common import *
+# print(int(b"11111"))
 
-post_data = json.dumps({
-    "bot_name": "banking demo4",
-    "query": "cus",
-    "size": 500,
-    "cn_enable": True
-})
+# import os
+#
+# pid = os.fork()  # fork反复拷贝
+# if pid == 0:
+#     print("A", os.getpid(), os.getppid())
+# else:
+#     print("B", os.getpid(), os.getppid())
 
-for i in range(1000):
-    start = datetime.datetime.now()
-    r = requests.post("http://127.0.0.1:8088/search", data=post_data)
-    print(r.text)
-    print(time_cost(start))
+from config import *
+
+print(r_to_dict(r, "111"))
