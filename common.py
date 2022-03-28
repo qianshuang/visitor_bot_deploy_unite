@@ -74,3 +74,8 @@ def r_to_dict(r, name, v_type="str"):
     if v_type == "int":
         return {str(k, encoding='utf-8'): int(v) for k, v in r_dict.items()}
     return {str(k, encoding='utf-8'): str(v, encoding='utf-8') for k, v in r_dict.items()}
+
+
+def del_dict_key(dic, key):
+    if key in dic:
+        del dic[key]

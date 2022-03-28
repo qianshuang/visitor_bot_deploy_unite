@@ -28,7 +28,6 @@ def search():
         'data': []
     }
     """
-    start = datetime.datetime.now()
     print("process id:", os.getpid())
 
     ori_rd = request.get_data(as_text=True)
@@ -46,7 +45,6 @@ def search():
 
     # 0. 同步Redis缓存
     rsync(bot_n)
-    print("rsync:", time_cost(start))
 
     # 1. 前缀搜索
     trie_res = smart_hint(bot_n, data)
@@ -61,16 +59,13 @@ def search():
         # 4. 断句拼音前缀搜索
         if if_split:
             trie_res = trie_res + smart_hint(bot_n, re.split(r'[,，.。？?！!（(”"]', data_pinyin)[-1].strip())
-    print("trie:", time_cost(start))
 
     # 5. 全文检索
     whoosh_res = whoosh_search(bot_n, data, size)
     # whoosh_res = rank(bot_n, whoosh_res)
-    print("whoosh:", time_cost(start))
 
     priorities_res = get_priorities(bot_n)
     ranked_trie_res = rank(bot_n, list(set(trie_res) - set(priorities_res)))
-    print("priorities:", time_cost(start))
 
     # 6. 编辑距离（仅在中文bot开启）
     leven_res = []
@@ -82,9 +77,7 @@ def search():
     ranked_leven_res = rank(bot_n, list(set(leven_res) - set(priorities_res + ranked_trie_res + whoosh_res)))
 
     ori_res = priorities_res + ranked_trie_res + whoosh_res + ranked_leven_res
-    # ori_res = [str(or_, encoding='utf-8') for or_ in ori_res]
     final_res = sorted(set(ori_res), key=ori_res.index)  # 保序去重
-    print("rank:", time_cost(start))
     return {'code': 0, 'msg': 'success', 'data': final_res[:size]}
 
 
@@ -162,6 +155,16 @@ def refresh():
             r.hdel("bot_trie", bot_n)
             r.hdel("bot_whoosh", bot_n)
             r.hdel("bot_version", bot_n)
+
+            del_dict_key(bot_intents_dict, bot_n)
+            del_dict_key(bot_intents_whoosh_dict, bot_n)
+            del_dict_key(bot_recents, bot_n)
+            del_dict_key(bot_frequency, bot_n)
+            del_dict_key(bot_priorities, bot_n)
+            del_dict_key(bot_trie, bot_n)
+            del_dict_key(bot_searcher, bot_n)
+            del_dict_key(bot_qp, bot_n)
+
             ret = {'code': 0, 'msg': 'success', 'time_cost': time_cost(start)}
         else:
             ret = {'code': -1, 'msg': 'unsupported operation', 'time_cost': time_cost(start)}

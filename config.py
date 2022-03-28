@@ -8,6 +8,8 @@ import marisa_trie
 from whoosh.index import create_in
 from whoosh.fields import *
 from jieba.analyse import ChineseAnalyzer
+from whoosh.qparser import QueryParser
+from whoosh.query import FuzzyTerm
 
 from common import *
 
@@ -22,7 +24,9 @@ bot_priorities = {}
 bot_recents = {}
 bot_frequency = {}
 bot_trie = {}
-bot_whoosh = {}
+
+bot_searcher = {}
+bot_qp = {}
 
 r = redis.Redis()
 global_lock = redis_lock.Lock(r, "global_lock")
@@ -72,7 +76,9 @@ def build_bot_whoosh_index(bot_name, index_dir_):
 
     r_set_pickled(r, "bot_whoosh", bot_name, ix_)
     bot_intents_whoosh_dict[bot_name] = intents_dict_
-    bot_whoosh[bot_name] = ix_
+
+    bot_searcher[bot_name] = ix_.searcher()
+    bot_qp[bot_name] = QueryParser("content", ix_.schema, termclass=FuzzyTerm)
 
 
 def build_bot_priorities(bot_name):

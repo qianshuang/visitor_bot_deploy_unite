@@ -43,6 +43,5 @@
 # else:
 #     print("B", os.getpid(), os.getppid())
 
-from config import *
-
-print(r_to_dict(r, "111"))
+bot = {}
+print(bot.pop("111"))

@@ -3,9 +3,6 @@
 import Levenshtein
 import pandas as pd
 
-from whoosh.qparser import QueryParser
-from whoosh.query import FuzzyTerm
-
 from config import *
 
 
@@ -21,7 +18,11 @@ def rsync(bot_n):
         bot_recents[bot_n] = r_to_str_list(r, "bot_recent&" + bot_n)
         bot_frequency[bot_n] = r_to_dict(r, "bot_frequency&" + bot_n, "int")
         bot_trie[bot_n] = r_get_pickled(r, "bot_trie", bot_n)
-        bot_whoosh[bot_n] = r_get_pickled(r, "bot_whoosh", bot_n)
+
+        whoosh_ix = r_get_pickled(r, "bot_whoosh", bot_n)
+        bot_searcher[bot_n] = whoosh_ix.searcher()
+        bot_qp[bot_n] = QueryParser("content", whoosh_ix.schema, termclass=FuzzyTerm)
+
         r.hset("bot_version&" + bot_n, str(os.getpid()), int(bot_version))
 
 
@@ -44,14 +45,8 @@ def rank(bot_n, trie_res):
 
 
 def whoosh_search(bot_n, query, lim=10):
-    ix_ = bot_whoosh[bot_n]
-    qp_and_ = QueryParser("content", ix_.schema, termclass=FuzzyTerm)
-    # qp_and_.add_plugin(qparser.FuzzyTermPlugin())
-
-    query = qp_and_.parse(query)
-    # print(query)
-
-    results = ix_.searcher().search(query, limit=lim)
+    query = bot_qp[bot_n].parse(query)
+    results = bot_searcher[bot_n].search(query, limit=lim)
     # 还原原文本
     res = []
     for r_ in results:
