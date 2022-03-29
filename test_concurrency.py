@@ -11,7 +11,7 @@ post_data = json.dumps({
     "cn_enable": True
 })
 
-for i in range(100):
+for i in range(20):
     start = datetime.datetime.now()
     r = requests.post("http://127.0.0.1:8088/search", data=post_data)
     print(r.text)

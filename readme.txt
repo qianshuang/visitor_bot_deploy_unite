@@ -13,7 +13,7 @@
 
 
 注：高并发时，采用gunicorn服务启动及部署方式，本web_service不支持高并发。启动方式：
-1. redis_lock.reset_all(r)  # 先释放所有Redis锁
+1. redis_lock.reset_all(r)  # 先释放所有Redis锁，非必须，无法正常启动时再执行
 2. gunicorn -w 4 -k gevent -b 0.0.0.0:8088 --threads 100 --worker-connections 10000 web_service:app
 
 
