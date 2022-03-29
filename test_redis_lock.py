@@ -6,8 +6,6 @@
 import redis
 import redis_lock
 
-from common import *
-
 r = redis.Redis()
 redis_lock.reset_all(r)
 
@@ -37,5 +35,3 @@ redis_lock.reset_all(r)
 # r_set_pickled(r, "bot_lock", "bot_1", lock_1)
 #
 # print(r_get_pickled(r, "bot_lock", "bot_1").acquire(blocking=False))
-
-print(r.expire("Zarten", 30 * 24 * 3600))  # 设置过期时间30天

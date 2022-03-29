@@ -91,7 +91,7 @@ def build_bot_priorities(bot_name):
     bot_priorities[bot_name] = read_file(PRIORITY_FILE)
 
 
-redis_lock.reset_all(r)
+# redis_lock.reset_all(r)
 
 if global_lock.acquire(blocking=False):
     for bot_na in os.listdir(BOT_SRC_DIR):

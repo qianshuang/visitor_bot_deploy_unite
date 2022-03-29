@@ -12,8 +12,9 @@
 12. 支持中文分词自定义词典
 
 
-注：高并发时，采用gunicorn服务启动及部署方式，本web_service不支持高并发。
-gunicorn -w 4 -k gevent -b 0.0.0.0:8088 --threads 100 --worker-connections 10000 web_service:app
+注：高并发时，采用gunicorn服务启动及部署方式，本web_service不支持高并发。启动方式：
+1. redis_lock.reset_all(r)  # 先释放所有Redis锁
+2. gunicorn -w 4 -k gevent -b 0.0.0.0:8088 --threads 100 --worker-connections 10000 web_service:app
 
 
 Redis安装：https://redis.io/docs/getting-started/installation/install-redis-on-mac-os/
