@@ -11,7 +11,7 @@ def rsync(bot_n):
     bot_process_version = r.hget("bot_version&" + bot_n, str(os.getpid()))
 
     if bot_version != bot_process_version:
-        print("starting rsync...")
+        print("starting rsync...", os.getpid())
         bot_intents_dict[bot_n] = r_to_dict(r, "bot_intents&" + bot_n)
         bot_intents_whoosh_dict[bot_n] = r_to_dict(r, "bot_intents_whoosh&" + bot_n)
         bot_priorities[bot_n] = r_to_str_list(r, "bot_priorities&" + bot_n)

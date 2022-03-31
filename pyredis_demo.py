@@ -46,12 +46,12 @@ r = redis.Redis()
 # results = ix.searcher().search(query)
 # print(results)
 
-# for elem in r.keys():
-#     print(elem)
-#     r.delete(elem)
+for elem in r.keys():
+    print(elem)
+    r.delete(elem)
 print(r.keys())
 
-# print(r.hgetall("bot_version"))
+print(r.hgetall("bot_version&banking demo4"))
 # r.hincrby("bot_version", "111")
 # r.hincrby("bot_version", "222")
 # print(r.hgetall("bot_version"))
