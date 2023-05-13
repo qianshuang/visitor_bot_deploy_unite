@@ -23,8 +23,8 @@ r = redis.Redis()
 # print(r.rpush('Zarten', 2))
 # print(r.rpush('Zarten', 3))
 # print(r.lindex('Zarten', 0))
-# print(r.lrange("Zarten", 0, -1))
-# print(r.lrem("Zarten", 0, 4))
+# print(r.lrange("Zarten", 0, -1))  # 取出左右元素
+# print(r.lrem("Zarten", 0, 4))  # 删除值为0的元素，删除4个
 
 # trie
 # trie = marisa_trie.Trie(["我是谁？", "你叫什么名字？"])
